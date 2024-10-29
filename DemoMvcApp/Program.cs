@@ -4,10 +4,12 @@ using DemoMvcApp.Mapper;
 using DemoMvcApp.Repositories;
 using DemoMvcApp.Services;
 using DemoMvcApp.Utilities;
+using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using System.Reflection;
 using System.Text;
 
 
@@ -34,6 +36,21 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<JwtTokenHelper>();  // Register the JwtTokenHelper class
 
 
+//   MediateR
+
+builder.Services.AddControllersWithViews();
+
+//version ko error le sir ko hatayera yo rakheko
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly())); // Register MediatR
+
+//builder.Services.AddControllersWithViews();
+//builder.Services.AddMediatR(Assembly.GetExecutingAssembly());
+//builder.Services.AddScoped<IProductRepository, ProductRepository>(); // Register repository
+// Other service registrations
+
+
+
+
 
 // Add Swagger services to the DI container
 builder.Services.AddSwaggerGen();
@@ -55,6 +72,10 @@ builder.Services.AddCors(options =>
                    .AllowAnyHeader();
         });
 });
+
+
+
+
 
 builder.Services.AddAuthentication(options =>
 {

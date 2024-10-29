@@ -11,9 +11,9 @@ namespace DemoMvcApp.Mapper
             {
                 Id = product.Id,
                 Name = product.Name,
-                Price = product.Price,
-                ProductImage = product.ProductImage,
-                ImagePath = product.ImagePath
+                Price = product.Price
+               /* ProductImage = product.ProductImage,*/
+                /*ImagePath = product.ImagePath*/
             };
         }
 
@@ -23,9 +23,9 @@ namespace DemoMvcApp.Mapper
             {
                 Id = productDto.Id,
                 Name = productDto.Name,
-                Price = productDto.Price,
-                ProductImage = productDto.ProductImage,
-                ImagePath = productDto.ImagePath
+                Price = productDto.Price
+              /*  ProductImage = productDto.ProductImage,
+                ImagePath = productDto.ImagePath*/
             };
         }
     }

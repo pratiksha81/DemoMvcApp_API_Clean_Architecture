@@ -7,6 +7,7 @@ using DemoMvcApp.command;
 using DemoMvcApp.Mapper;
 using DemoMvcApp.Repositories;
 using DemoMvcApp.DTOs;
+using MediatR;
 
 namespace DemoMvcApp.Controllers
 {
@@ -19,10 +20,12 @@ namespace DemoMvcApp.Controllers
         private readonly CreateProductCommandHandler _commandHandler;
         private readonly IMapper _mapper;//mapper
         private readonly IProductRepository _productRepository;
+        private readonly IMediator _mediator;
+
 
 
         // Dependency Injection
-        public ProductsController(IProductService productService, IErrorHandlingService<string> errorHandlingService, CreateProductCommandHandler commandHandler, IMapper mapper, IProductRepository productRepository)
+        public ProductsController(IProductService productService, IErrorHandlingService<string> errorHandlingService, CreateProductCommandHandler commandHandler, IMapper mapper, IProductRepository productRepository, IMediator mediator)
         {
             _productService = productService;
 
@@ -31,6 +34,8 @@ namespace DemoMvcApp.Controllers
             _productRepository = productRepository;
 
             _mapper = mapper;
+            _mediator = mediator;
+
 
         }
 
@@ -73,31 +78,57 @@ namespace DemoMvcApp.Controllers
 
         // POST api/<ProductsController>
         [HttpPost]
-        public IActionResult Post([FromBody] CreateProductCommand command)
+        public async Task<IActionResult> Post([FromForm] ProductDto productDto, IFormFile productImage)
         {
             try
             {
-                _commandHandler.Handle(command);  // Synchronously handle the command
-                return RedirectToAction("Index"); // Redirect to Get action after successful creation
+                if (productImage != null && productImage.Length > 0)
+                {
+                    // Define the path to save the image
+                    var filePath = Path.Combine("C:\\Users\\ecs\\source\\repos\\DemoMvcApp\\DemoMvcApp\\Image", productImage.FileName);
+
+                    // Save the file to the defined path
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await productImage.CopyToAsync(stream);
+                    }
+
+                    // Map the DTO to the course entity
+                    var product = _mapper.MapToEntity(productDto);
+
+                    // Assign the image path to the entity
+                    product.ProductImage = filePath;
+
+                    // Add course to the service (or DB)
+                    _productService.AddProduct(product);
+
+                    return Ok(new { message = "Products and image added successfully" });
+                }
+                else
+                {
+                    return BadRequest("Product image is required.");
+                }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 var errorMessage = _errorHandlingService.GetError();
                 return StatusCode(500, errorMessage);
             }
         }
 
+
+
         [HttpPost("upload-file")]
-        public async Task<IActionResult> UploadFile(IFormFile productImage, string Name, decimal Price)
+        public async Task<IActionResult> UploadFile(IFormFile imageFile, string Name, decimal Price)
         {
-            if (productImage != null && productImage.Length > 0)
+            if (imageFile != null && imageFile.Length > 0)
             {
-                var fileName = Guid.NewGuid() + Path.GetExtension(productImage.FileName);
+                var fileName = Guid.NewGuid() + Path.GetExtension(imageFile.FileName);
                 var filePath = Path.Combine(Directory.GetCurrentDirectory(), "C:\\Users\\ecs\\source\\repos\\DemoMvcApp\\DemoMvcApp\\Image", fileName);
 
                 using (var stream = new FileStream(filePath, FileMode.Create))
                 {
-                    await productImage.CopyToAsync(stream);
+                    await imageFile.CopyToAsync(stream);
                 }
 
                 // Save product info to the database
@@ -105,27 +136,57 @@ namespace DemoMvcApp.Controllers
                 {
                     Name = Name,
                     Price = Price,
-                    ProductImage = fileName,
-                    ImagePath = filePath
+                    ProductImage = fileName
+                   /* ImagePath = filePath*/
                 };
 
-                _commandHandler.Handle(command);
-                return Ok(new { message = "File uploaded successfully" });
+               await _commandHandler.Handle(command, HttpContext.RequestAborted);
+                return Ok(new { message = "File uploaded successfully"/*, imagePath = filePath*/ });
             }
             return BadRequest(new { message = "No file uploaded" });
         }
-        
-                // PUT api/<ProductsController>/5
-                [HttpPut("{id}")]
-        public IActionResult Put(int id, [FromBody] Product value)
+
+
+        // PUT api/<ProductsController>/5
+        [HttpPut("{id}")]
+        public async Task<IActionResult> Put(int id, [FromForm] ProductDto productDto, IFormFile? productImage)
         {
             try
             {
-                _productService.UpdateProduct(id, value);
-                return NoContent();
+                // Fetch the existing product by ID
+                var existingProduct = _productService.GetProductById(id);
+                if (existingProduct == null)
+                {
+                    return NotFound(new { message = "Product not found" });
+                }
+
+                // Check if an image file is provided
+                if (productImage != null && productImage.Length > 0)
+                {
+                    // Define the path to save the image
+                    var filePath = Path.Combine("C:\\Users\\ecs\\source\\repos\\DemoMvcApp\\DemoMvcApp\\Image", productImage.FileName);
+
+                    // Save the new file to the defined path
+                    using (var stream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await productImage.CopyToAsync(stream);
+                    }
+
+                    // Update the image path in the product entity
+                    existingProduct.ProductImage = filePath;
+                }
+
+                // Map other properties from DTO to the product entity
+                existingProduct = _mapper.MapToEntity(productDto);
+
+                // Update the product in the database
+                _productService.UpdateProduct(id, existingProduct);
+
+                return Ok(new { message = "Product updated successfully" });
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                // Log the exception and return a custom error message
                 var errorMessage = _errorHandlingService.GetError();
                 return StatusCode(500, errorMessage);
             }
@@ -146,7 +207,18 @@ namespace DemoMvcApp.Controllers
                 return StatusCode(500, errorMessage);
             }
         }
-        
+
+
+        //MediatR
+        [HttpPost("MediatR")]
+        public async Task<IActionResult> CreateProduct(CreateProductCommand command)
+        {
+            var product = await _mediator.Send(command);
+            return CreatedAtAction(nameof(CreateProduct), new { id = product.Id }, product);
+        }
+
+
+
 
 
 
